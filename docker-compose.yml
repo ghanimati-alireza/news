@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  db:
+    image: nouchka/sqlite3
+    container_name: db
+    volumes:
+      - ./db.sqlite3:/app/db.sqlite3
+    networks:
+      - news_backend
+
+  redis:
+    image: redis
+    command: redis-server --requirepass ${REDIS_PASSWORD} --protected-mode yes
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    networks:
+      - news_backend
+
+  backend:
+    build: .
+    command: gunicorn --bind 0.0.0.0:8000 news.wsgi:application
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    networks:
+      - backend
+
+  celery:
+    build: .
+    command: celery -A news worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - db
+    networks:
+      - news_backend
+
+  celery-beat:
+    build: .
+    command: celery -A news beat --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - db
+    networks:
+      - news_backend
+
+networks:
+  news_backend:
+    driver: bridge
+
